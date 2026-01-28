@@ -1,4 +1,0 @@
-textual>=0.55.0
-pydub>=0.25.1
-python-osc>=1.8.3
-yt-dlp>=2024.3.10
