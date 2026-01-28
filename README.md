@@ -2,18 +2,42 @@
 
 Modular terminal toolbox built with Textual.
 
+## Install (GitHub)
+
+```bash
+git clone git@github.com:<you>/<repo>.git
+cd <repo>
+./install.sh
+```
+
 ## Run
 
 ```bash
 python -m toolbox
-```
-
-Or install and run:
-
-```bash
-pip install -e .
+./run.sh
 toolbox
 ```
+
+## Update
+
+Use the Settings tool inside the app to check for updates and pull the latest code.
+You can also update manually:
+
+```bash
+git pull --ff-only
+./install.sh
+```
+
+## Available tools
+
+- Audio Converter
+- Audio Distance
+- MaxGain
+- Stereo Merger
+- OSC Sender/Receiver
+- TCP Sender/Receiver
+- YouTube Downloader
+- Settings
 
 ## Add a tool
 
