@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+import shutil
+import subprocess
+
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -50,6 +54,8 @@ class ToolboxApp(App):
                 yield self.tool_list
             with Vertical(id="content"):
                 yield Static("Select a tool to view details.", id="content-title")
+                self.update_status = Static("", id="update-status")
+                yield self.update_status
                 self.tool_details = Static("", id="tool-details")
                 yield self.tool_details
         yield Footer()
@@ -58,6 +64,7 @@ class ToolboxApp(App):
         self._populate_categories()
         self._refresh_tool_list("")
         self.tool_list.focus()
+        self.run_worker(self._startup_update_check, thread=True)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "tool-search":
@@ -120,6 +127,54 @@ class ToolboxApp(App):
             self._show_tool(0)
         else:
             self.tool_details.update("No tools match your search.")
+
+    def _startup_update_check(self) -> None:
+        if shutil.which("git") is None:
+            return
+        repo_root = Path(__file__).resolve().parents[2]
+        check = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+        if check.returncode != 0 or "true" not in check.stdout:
+            return
+        upstream = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+        if upstream.returncode != 0:
+            return
+        subprocess.run(
+            ["git", "fetch", "--prune"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+        counts = subprocess.run(
+            ["git", "rev-list", "--left-right", "--count", f"HEAD...{upstream.stdout.strip()}"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+        if counts.returncode != 0:
+            return
+        try:
+            _ahead, behind = counts.stdout.strip().split()
+        except ValueError:
+            return
+        try:
+            behind_count = int(behind)
+        except ValueError:
+            return
+        if behind_count > 0:
+            self.call_from_thread(
+                self.update_status.update,
+                f"[yellow]Update available: {behind_count} commit(s) behind.[/yellow]",
+            )
 
     def _populate_categories(self) -> None:
         categories = sorted({tool.category for tool in self._tool_registry.tools})

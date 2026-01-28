@@ -50,6 +50,11 @@ Horizontal {
   margin-bottom: 1;
 }
 
+#update-status {
+  height: auto;
+  margin-bottom: 1;
+}
+
 #tool-details {
   height: 1fr;
   color: $text-muted;
