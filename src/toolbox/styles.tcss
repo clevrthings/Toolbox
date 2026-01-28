@@ -1,0 +1,432 @@
+Screen {
+  layout: vertical;
+  background: $background;
+}
+
+Horizontal {
+  height: 1fr;
+}
+
+#sidebar {
+  width: 28%;
+  min-width: 26;
+  max-width: 40;
+  border: round $accent;
+  padding: 1 2;
+  background: $surface;
+}
+
+#content {
+  width: 1fr;
+  border: round $secondary;
+  padding: 1 2;
+  background: $panel;
+}
+
+#sidebar-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#tool-search {
+  margin-bottom: 1;
+  border: round $primary;
+}
+
+#category-title {
+  margin-bottom: 1;
+}
+
+#category-list {
+  height: 10;
+  border: round $accent;
+  padding: 0 1;
+  background: $background;
+  margin-bottom: 1;
+}
+
+#content-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#tool-details {
+  height: 1fr;
+  color: $text-muted;
+}
+
+#tool-list {
+  height: 1fr;
+  border: round $accent;
+  padding: 0 1;
+  background: $background;
+}
+
+ListView > ListItem {
+  padding: 0 1;
+}
+
+ListView > ListItem:hover {
+  background: $accent 20%;
+}
+
+#tool-view {
+  padding: 1 2;
+}
+
+#audio-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#audio-source-row,
+#audio-target-row {
+  height: auto;
+}
+
+#audio-source,
+#audio-target {
+  width: 1fr;
+  margin-right: 1;
+}
+
+#audio-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#audio-format {
+  height: auto;
+  max-height: 5;
+}
+
+#audio-sample-rate {
+  width: 1fr;
+}
+
+#audio-bitrate {
+  height: auto;
+  max-height: 5;
+}
+
+#audio-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#audio-status {
+  margin-top: 1;
+  height: auto;
+}
+
+#audio-progress {
+  margin-top: 1;
+}
+
+#path-picker-title {
+  text-style: bold;
+  margin: 1 2;
+}
+
+#path-picker-tree {
+  height: 1fr;
+  border: round $accent;
+  margin: 0 2 1 2;
+}
+
+#ffmpeg-prompt {
+  margin: 1 2;
+  height: auto;
+}
+
+#ffmpeg-actions {
+  margin: 0 2 1 2;
+  height: auto;
+}
+
+#pydub-prompt {
+  margin: 1 2;
+  height: auto;
+}
+
+#pydub-actions {
+  margin: 0 2 1 2;
+  height: auto;
+}
+
+#audioop-prompt {
+  margin: 1 2;
+  height: auto;
+}
+
+#audioop-actions {
+  margin: 0 2 1 2;
+  height: auto;
+}
+
+#tcp-form,
+#osc-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#tcp-title,
+#osc-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#tcp-top,
+#osc-top {
+  height: auto;
+}
+
+#tcp-sender,
+#tcp-receiver,
+#osc-sender,
+#osc-receiver {
+  margin-bottom: 1;
+  width: 1fr;
+  height: auto;
+}
+
+.section-title {
+  text-style: bold;
+  margin: 0 0 1 0;
+}
+
+#tcp-send-host,
+#tcp-send-port,
+#tcp-send-message,
+#tcp-recv-host,
+#tcp-recv-port,
+#osc-send-host,
+#osc-send-port,
+#osc-send-address,
+#osc-send-args,
+#osc-recv-host,
+#osc-recv-port {
+  width: 1fr;
+}
+
+#tcp-recv-actions,
+#osc-recv-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#tcp-log-actions,
+#osc-log-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#tcp-status,
+#osc-status {
+  margin-top: 1;
+  height: auto;
+}
+
+#tcp-log,
+#osc-log {
+  margin-top: 1;
+  height: 10;
+  min-height: 6;
+  border: round $accent;
+  padding: 0 1;
+}
+#maxgain-form,
+#stereo-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#maxgain-title,
+#stereo-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#maxgain-source-row,
+#stereo-source-row {
+  height: auto;
+}
+
+#maxgain-source,
+#stereo-source {
+  width: 1fr;
+  margin-right: 1;
+}
+
+#maxgain-output-row {
+  height: auto;
+}
+
+#maxgain-output-folder {
+  width: 1fr;
+  margin-right: 1;
+}
+
+#maxgain-output-name,
+#maxgain-target-dbfs {
+  width: 1fr;
+}
+
+#maxgain-options,
+#stereo-options {
+  margin-top: 1;
+  height: auto;
+}
+
+#maxgain-actions,
+#stereo-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#maxgain-status,
+#stereo-status {
+  margin-top: 1;
+  height: auto;
+}
+
+#maxgain-progress,
+#stereo-progress {
+  margin-top: 1;
+}
+
+#maxgain-log,
+#stereo-log {
+  margin-top: 1;
+  height: 1fr;
+  border: round $accent;
+  padding: 0 1;
+}
+
+#maxgain-picker-title,
+#stereo-picker-title {
+  text-style: bold;
+  margin: 1 2;
+}
+
+#maxgain-picker-tree,
+#stereo-picker-tree {
+  height: 1fr;
+  border: round $accent;
+  margin: 0 2 1 2;
+}
+
+#distance-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#distance-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#distance-speed {
+  margin-bottom: 1;
+  color: $text-muted;
+}
+
+#distance-time,
+#distance-meters,
+#distance-hz,
+#distance-wavelength,
+#distance-temp {
+  width: 1fr;
+}
+
+#settings-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#settings-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#settings-version {
+  margin-bottom: 1;
+  color: $text-muted;
+}
+
+#settings-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#settings-log {
+  margin-top: 1;
+  height: 1fr;
+  border: round $accent;
+  padding: 0 1;
+}
+
+#yt-form {
+  padding: 1 2;
+  height: 1fr;
+}
+
+#yt-title {
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#yt-url,
+#yt-output,
+#yt-mode,
+#yt-quality,
+#yt-client,
+#yt-cookies {
+  width: 1fr;
+}
+
+#yt-mode,
+#yt-quality,
+#yt-client,
+#yt-cookies {
+  height: auto;
+  max-height: 5;
+}
+
+#yt-output-row {
+  height: auto;
+}
+
+#yt-actions {
+  margin-top: 1;
+  height: auto;
+}
+
+#yt-status {
+  margin-top: 1;
+  height: auto;
+}
+
+#yt-log {
+  margin-top: 1;
+  height: 10;
+  min-height: 6;
+  border: round $accent;
+  padding: 0 1;
+}
+
+#yt-picker-title {
+  text-style: bold;
+  margin: 1 2;
+}
+
+#yt-picker-tree {
+  height: 1fr;
+  border: round $accent;
+  margin: 0 2 1 2;
+}
+
+#tool-list > .list-view--highlight {
+  background: $accent;
+  color: $text;
+}

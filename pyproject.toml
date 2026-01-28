@@ -1,0 +1,19 @@
+[project]
+name = "toolbox"
+version = "0.1.0"
+description = "Terminal toolbox with modular tools."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "textual>=0.55.0",
+    "pydub>=0.25.1",
+    "python-osc>=1.8.3",
+    "yt-dlp>=2024.3.10",
+]
+
+[project.scripts]
+toolbox = "toolbox.app:run"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
