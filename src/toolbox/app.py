@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
-import subprocess
+import json
+import re
+import urllib.request
 
 from textual.app import App
 from textual.binding import Binding
@@ -129,52 +130,65 @@ class ToolboxApp(App):
             self.tool_details.update("No tools match your search.")
 
     def _startup_update_check(self) -> None:
-        if shutil.which("git") is None:
-            return
         repo_root = Path(__file__).resolve().parents[2]
-        check = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if check.returncode != 0 or "true" not in check.stdout:
+        local_version = self._read_local_version(repo_root)
+        branch = self._read_update_branch(repo_root)
+        remote_version = self._fetch_remote_version(branch)
+        if local_version is None or remote_version is None:
             return
-        upstream = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if upstream.returncode != 0:
-            return
-        subprocess.run(
-            ["git", "fetch", "--prune"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        counts = subprocess.run(
-            ["git", "rev-list", "--left-right", "--count", f"HEAD...{upstream.stdout.strip()}"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if counts.returncode != 0:
-            return
-        try:
-            _ahead, behind = counts.stdout.strip().split()
-        except ValueError:
-            return
-        try:
-            behind_count = int(behind)
-        except ValueError:
-            return
-        if behind_count > 0:
+        if self._compare_versions(local_version, remote_version) < 0:
             self.call_from_thread(
                 self.update_status.update,
-                f"[yellow]Update available: {behind_count} commit(s) behind.[/yellow]",
+                f"[yellow]Update available: {local_version} → {remote_version}.[/yellow]",
             )
+
+    def _read_local_version(self, repo_root: Path) -> str | None:
+        pyproject = repo_root / "pyproject.toml"
+        if not pyproject.exists():
+            return None
+        text = pyproject.read_text(encoding="utf-8")
+        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
+        return match.group(1) if match else None
+
+    def _fetch_remote_version(self, branch: str) -> str | None:
+        url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
+        try:
+            with urllib.request.urlopen(url, timeout=6) as response:
+                text = response.read().decode("utf-8")
+        except Exception:
+            return None
+        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
+        return match.group(1) if match else None
+
+    def _read_update_branch(self, repo_root: Path) -> str:
+        config_path = repo_root / ".toolbox_config.json"
+        if not config_path.exists():
+            return "main"
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            return "main"
+        branch = data.get("update_branch")
+        return branch if branch in {"main", "dev"} else "main"
+
+    def _compare_versions(self, local: str, remote: str) -> int:
+        def _parse(value: str) -> tuple[int, ...]:
+            parts = re.split(r"[.+-]", value)
+            nums: list[int] = []
+            for part in parts:
+                if part.isdigit():
+                    nums.append(int(part))
+                else:
+                    break
+            return tuple(nums)
+
+        local_tuple = _parse(local)
+        remote_tuple = _parse(remote)
+        if local_tuple == remote_tuple:
+            return 0
+        if local_tuple > remote_tuple:
+            return 1
+        return -1
 
     def _populate_categories(self) -> None:
         categories = sorted({tool.category for tool in self._tool_registry.tools})

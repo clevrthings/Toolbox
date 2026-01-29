@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
-import subprocess
 import sys
+import tempfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, RichLog, Static
+from textual.widgets import Button, Footer, Header, Label, RichLog, Select, Static
 
 from toolbox.tools.base import Tool
 
@@ -20,6 +23,7 @@ class SettingsScreen(Screen):
     def __init__(self) -> None:
         super().__init__()
         self._repo_root = Path(__file__).resolve().parents[3]
+        self._config_path = self._repo_root / ".toolbox_config.json"
 
     def compose(self):
         yield Header()
@@ -27,6 +31,13 @@ class SettingsScreen(Screen):
             yield Static("Settings", id="settings-title")
             self.version_label = Static("", id="settings-version")
             yield self.version_label
+            yield Label("Update channel")
+            self.branch_select = Select(
+                [("Main", "main"), ("Dev", "dev")],
+                value="main",
+                id="settings-branch",
+            )
+            yield self.branch_select
             with Horizontal(id="settings-actions"):
                 yield Button("Check for updates", id="settings-check")
                 yield Button("Update", id="settings-update", variant="success")
@@ -38,6 +49,11 @@ class SettingsScreen(Screen):
     def on_mount(self) -> None:
         version = self._read_version()
         self.version_label.update(f"Version: {version}")
+        self._load_branch_setting()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "settings-branch":
+            self._save_branch_setting()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "settings-clear":
@@ -69,42 +85,26 @@ class SettingsScreen(Screen):
             return match.group(1) if match else "dev"
 
     def _check_updates_worker(self) -> None:
-        if not self._git_ready():
+        branch = self.branch_select.value or "main"
+        local_version = self._read_version()
+        remote_version = self._fetch_remote_version(branch)
+        if remote_version is None:
+            self._log("Failed to fetch remote version.")
             return
-        self._log("Fetching remote...")
-        fetch = self._run_command(["git", "fetch", "--prune"])
-        if fetch.returncode != 0:
-            self._log(fetch.stderr or fetch.stdout or "git fetch failed.")
+        if self._compare_versions(local_version, remote_version) >= 0:
+            self._log(f"Up to date. ({local_version})")
             return
-        upstream = self._get_upstream()
-        if upstream is None:
-            self._log("No upstream is configured for this branch.")
-            return
-        ahead, behind = self._ahead_behind(upstream)
-        if ahead is None:
-            return
-        if behind == 0 and ahead == 0:
-            self._log("Up to date.")
-            return
-        if behind > 0:
-            self._log(f"Updates available: {behind} commit(s) behind {upstream}.")
-        if ahead > 0:
-            self._log(f"Local branch is {ahead} commit(s) ahead of {upstream}.")
+        self._log(f"Update available: {local_version} -> {remote_version}")
 
     def _update_worker(self) -> None:
-        if not self._git_ready():
+        if shutil.which("python") is None and shutil.which("python3") is None:
+            self._log("Python is not available.")
             return
-        if self._working_tree_dirty():
-            self._log("Working tree has uncommitted changes. Commit or stash first.")
+        branch = self.branch_select.value or "main"
+        if self._has_uncommitted_changes():
+            self._log("Local changes detected. Back up or commit before updating.")
             return
-        upstream = self._get_upstream()
-        if upstream is None:
-            self._log("No upstream is configured for this branch.")
-            return
-        self._log("Pulling latest changes...")
-        pull = self._run_command(["git", "pull", "--ff-only"])
-        if pull.returncode != 0:
-            self._log(pull.stderr or pull.stdout or "git pull failed.")
+        if not self._download_and_replace(branch):
             return
         self._log("Updating dependencies...")
         pip = self._run_command([sys.executable, "-m", "pip", "install", "-e", "."])
@@ -115,41 +115,62 @@ class SettingsScreen(Screen):
         self.version_label.update(f"Version: {version}")
         self._log("Update complete. Restart the app to apply changes.")
 
-    def _git_ready(self) -> bool:
+    def _has_uncommitted_changes(self) -> bool:
+        git_dir = self._repo_root / ".git"
+        if not git_dir.exists():
+            return False
         if shutil.which("git") is None:
-            self._log("git is not installed.")
             return False
-        check = self._run_command(["git", "rev-parse", "--is-inside-work-tree"])
-        if check.returncode != 0 or "true" not in check.stdout:
-            self._log("This folder is not a git repository.")
-            return False
-        return True
-
-    def _working_tree_dirty(self) -> bool:
         status = self._run_command(["git", "status", "--porcelain"])
         return bool(status.stdout.strip())
 
-    def _get_upstream(self) -> str | None:
-        upstream = self._run_command(
-            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]
-        )
-        if upstream.returncode != 0:
-            return None
-        return upstream.stdout.strip()
-
-    def _ahead_behind(self, upstream: str) -> tuple[int | None, int | None]:
-        counts = self._run_command(
-            ["git", "rev-list", "--left-right", "--count", f"HEAD...{upstream}"]
-        )
-        if counts.returncode != 0:
-            self._log(counts.stderr or counts.stdout or "Failed to compare branches.")
-            return None, None
+    def _fetch_remote_version(self, branch: str) -> str | None:
+        url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
         try:
-            ahead_str, behind_str = counts.stdout.strip().split()
-            return int(ahead_str), int(behind_str)
-        except ValueError:
-            self._log("Failed to parse update status.")
-            return None, None
+            with urllib.request.urlopen(url, timeout=10) as response:
+                text = response.read().decode("utf-8")
+        except Exception:
+            return None
+        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
+        return match.group(1) if match else None
+
+    def _download_and_replace(self, branch: str) -> bool:
+        url = f"https://github.com/clevrthings/Toolbox/archive/refs/heads/{branch}.zip"
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                zip_path = Path(tmpdir) / "update.zip"
+                with urllib.request.urlopen(url, timeout=20) as response:
+                    zip_path.write_bytes(response.read())
+                extract_dir = Path(tmpdir) / "extract"
+                extract_dir.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(zip_path) as archive:
+                    archive.extractall(extract_dir)
+                root_dirs = [p for p in extract_dir.iterdir() if p.is_dir()]
+                if not root_dirs:
+                    self._log("Update failed: no files in archive.")
+                    return False
+                source_root = root_dirs[0]
+                self._replace_tree(source_root, self._repo_root)
+                return True
+        except Exception as exc:
+            self._log(f"Update failed: {exc}")
+            return False
+
+    def _replace_tree(self, source: Path, dest: Path) -> None:
+        keep = {".git", ".venv"}
+        for item in dest.iterdir():
+            if item.name in keep:
+                continue
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+        for item in source.iterdir():
+            target = dest / item.name
+            if item.is_dir():
+                shutil.copytree(item, target, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, target)
 
     def _run_command(self, cmd: list[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -161,6 +182,44 @@ class SettingsScreen(Screen):
 
     def _log(self, message: str) -> None:
         self.app.call_from_thread(self.log_view.write, message)
+
+    def _compare_versions(self, local: str, remote: str) -> int:
+        def _parse(value: str) -> tuple[int, ...]:
+            parts = re.split(r"[.+-]", value)
+            nums: list[int] = []
+            for part in parts:
+                if part.isdigit():
+                    nums.append(int(part))
+                else:
+                    break
+            return tuple(nums)
+
+        local_tuple = _parse(local)
+        remote_tuple = _parse(remote)
+        if local_tuple == remote_tuple:
+            return 0
+        if local_tuple > remote_tuple:
+            return 1
+        return -1
+
+    def _load_branch_setting(self) -> None:
+        if not self._config_path.exists():
+            return
+        try:
+            data = json.loads(self._config_path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        branch = data.get("update_branch")
+        if branch in {"main", "dev"}:
+            self.branch_select.value = branch
+
+    def _save_branch_setting(self) -> None:
+        branch = self.branch_select.value or "main"
+        data = {"update_branch": branch}
+        try:
+            self._config_path.write_text(json.dumps(data), encoding="utf-8")
+        except Exception:
+            self._log("Failed to save update channel.")
 
 
 TOOL = Tool(
