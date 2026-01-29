@@ -11,3 +11,4 @@ dist/
 build/
 push.sh
 run.sh
+.toolbox_config.json

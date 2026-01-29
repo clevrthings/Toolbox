@@ -4,6 +4,14 @@ Modular terminal toolbox built with Textual.
 
 ## Install (GitHub)
 
+One-line install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clevrthings/Toolbox/main/bootstrap_install.sh | bash
+```
+
+Manual install:
+
 ```bash
 git clone git@github.com:<you>/<repo>.git
 cd <repo>

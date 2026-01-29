@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-import wave
+import importlib.util
+import shutil
 
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer
@@ -57,6 +58,7 @@ class PathPickerScreen(Screen):
 
 class StereoMergerScreen(Screen):
     BINDINGS = [Binding("escape", "back", "Back", priority=True)]
+    _EXTENSIONS = {".wav", ".flac", ".mp3", ".aiff", ".aif", ".m4a", ".ogg", ".opus"}
 
     def __init__(self) -> None:
         super().__init__()
@@ -66,7 +68,7 @@ class StereoMergerScreen(Screen):
         yield Header()
         with ScrollableContainer(id="stereo-form"):
             yield Static("Stereo Merger", id="stereo-title")
-            yield Label("Source folder with .L/.R WAV pairs")
+            yield Label("Source folder with .L/.R pairs (wav/flac/mp3/aiff/...)")
             with Horizontal(id="stereo-source-row"):
                 self.source_input = Input(
                     placeholder="path/to/folder",
@@ -121,6 +123,8 @@ class StereoMergerScreen(Screen):
         )
 
     def _run_script(self) -> None:
+        if not self._deps_ready():
+            return
         source = self._resolve_source()
         if source is None:
             return
@@ -145,15 +149,15 @@ class StereoMergerScreen(Screen):
         if not pairs:
             self.app.call_from_thread(
                 self.status.update,
-                "[red]No .L/.R WAV pairs found.[/red]",
+                "[red]No .L/.R pairs found.[/red]",
             )
             return
 
         total = len(pairs)
         self.app.call_from_thread(self.progress.update, progress=0, total=total)
 
-        for index, (key, left, right) in enumerate(pairs, start=1):
-            output_path = left.parent / f"{key}.wav"
+        for index, (key, left, right, ext) in enumerate(pairs, start=1):
+            output_path = left.parent / f"{key}{ext}"
             try:
                 self._merge_to_stereo(left, right, output_path)
                 if self.delete_sources.value:
@@ -175,22 +179,44 @@ class StereoMergerScreen(Screen):
         )
 
     def _collect_pairs(self, source: Path):
-        grouped: dict[str, dict[str, Path]] = {}
-        for path in source.glob("*.wav"):
+        grouped: dict[tuple[str, str], dict[str, Path]] = {}
+        for path in source.iterdir():
+            if not path.is_file():
+                continue
+            ext = path.suffix.lower()
+            if ext not in self._EXTENSIONS:
+                continue
             name = path.name
-            if name.endswith(".L.wav"):
-                key = name.replace(".L.wav", "")
-                grouped.setdefault(key, {})["L"] = path
-            elif name.endswith(".R.wav"):
-                key = name.replace(".R.wav", "")
-                grouped.setdefault(key, {})["R"] = path
+            name_lower = name.lower()
+            if name_lower.endswith(f".l{ext}") or name_lower.endswith(f"%l{ext}") or name_lower.endswith(f"_l{ext}"):
+                key = (
+                    name[: -len(ext)]
+                    .replace(".L", "")
+                    .replace(".l", "")
+                    .replace("%L", "")
+                    .replace("%l", "")
+                    .replace("_L", "")
+                    .replace("_l", "")
+                )
+                grouped.setdefault((key, ext), {})["L"] = path
+            elif name_lower.endswith(f".r{ext}") or name_lower.endswith(f"%r{ext}") or name_lower.endswith(f"_r{ext}"):
+                key = (
+                    name[: -len(ext)]
+                    .replace(".R", "")
+                    .replace(".r", "")
+                    .replace("%R", "")
+                    .replace("%r", "")
+                    .replace("_R", "")
+                    .replace("_r", "")
+                )
+                grouped.setdefault((key, ext), {})["R"] = path
 
         pairs = []
-        for key, files in grouped.items():
+        for (key, ext), files in grouped.items():
             left = files.get("L")
             right = files.get("R")
             if left and right:
-                pairs.append((key, left, right))
+                pairs.append((key, left, right, ext))
             else:
                 self.app.call_from_thread(
                     self._log, f"Skipping {key}: missing L or R"
@@ -198,40 +224,33 @@ class StereoMergerScreen(Screen):
         return pairs
 
     def _merge_to_stereo(self, left_path: Path, right_path: Path, output_path: Path) -> None:
-        with wave.open(str(left_path), "rb") as left_wav, wave.open(
-            str(right_path), "rb"
-        ) as right_wav:
-            if (
-                left_wav.getframerate() != right_wav.getframerate()
-                or left_wav.getnframes() != right_wav.getnframes()
-                or left_wav.getsampwidth() != right_wav.getsampwidth()
-            ):
-                raise ValueError("Input files differ in parameters.")
+        try:
+            from pydub import AudioSegment
+        except Exception as exc:
+            raise RuntimeError(f"pydub error: {exc}") from exc
 
-            sampwidth = left_wav.getsampwidth()
-            nframes = left_wav.getnframes()
-            framerate = left_wav.getframerate()
+        left = AudioSegment.from_file(left_path)
+        right = AudioSegment.from_file(right_path)
+        if left.frame_rate != right.frame_rate or left.sample_width != right.sample_width:
+            raise ValueError("Input files differ in parameters.")
+        if len(left) != len(right):
+            raise ValueError("Input files differ in length.")
 
-            frames_left = left_wav.readframes(nframes)
-            frames_right = right_wav.readframes(nframes)
+        stereo = AudioSegment.from_mono_audiosegments(left, right)
+        file_format = output_path.suffix.lower().lstrip(".")
+        export_args = {}
+        if file_format == "mp3":
+            export_args = {"parameters": ["-q:a", "0"]}
+        stereo.export(output_path, format=file_format, **export_args)
 
-            if sampwidth == 3:
-                stereo_bytes = bytearray()
-                for i in range(0, len(frames_left), 3):
-                    stereo_bytes += frames_left[i : i + 3]
-                    stereo_bytes += frames_right[i : i + 3]
-            else:
-                frame_size = sampwidth
-                stereo_bytes = bytearray()
-                for i in range(0, len(frames_left), frame_size):
-                    stereo_bytes += frames_left[i : i + frame_size]
-                    stereo_bytes += frames_right[i : i + frame_size]
-
-            with wave.open(str(output_path), "wb") as stereo_wav:
-                stereo_wav.setnchannels(2)
-                stereo_wav.setsampwidth(sampwidth)
-                stereo_wav.setframerate(framerate)
-                stereo_wav.writeframes(stereo_bytes)
+    def _deps_ready(self) -> bool:
+        if importlib.util.find_spec("pydub") is None:
+            self.status.update("[red]Missing dependency: pydub.[/red]")
+            return False
+        if shutil.which("ffmpeg") is None:
+            self.status.update("[red]Missing dependency: ffmpeg.[/red]")
+            return False
+        return True
 
     def _log(self, text: str) -> None:
         self._log_lines.append(text)

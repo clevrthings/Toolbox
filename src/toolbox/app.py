@@ -26,7 +26,10 @@ class ToolScreen(Screen):
 
     def compose(self):
         yield Header()
-        yield Static(f"[b]{self._tool_name}[/b]\n\n{self._tool_description}\n\n(placeholder view)", id="tool-view")
+        yield Static(
+            f"[b]{self._tool_name}[/b]\n\n{self._tool_description}\n\n(placeholder view)",
+            id="tool-view",
+        )
         yield Footer()
 
 
@@ -160,8 +163,7 @@ class ToolboxApp(App):
         if not pyproject.exists():
             return None
         text = pyproject.read_text(encoding="utf-8")
-        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
-        return match.group(1) if match else None
+        return self._parse_version_toml(text)
 
     def _fetch_remote_version(self, branch: str) -> str | None:
         url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
@@ -178,17 +180,6 @@ class ToolboxApp(App):
         if status != 200:
             return None
         return self._parse_version_toml(text)
-
-    def _read_update_branch(self, repo_root: Path) -> str:
-        config_path = repo_root / ".toolbox_config.json"
-        if not config_path.exists():
-            return "main"
-        try:
-            data = json.loads(config_path.read_text(encoding="utf-8"))
-        except Exception:
-            return "main"
-        branch = data.get("update_branch")
-        return branch if branch in {"main", "dev"} else "main"
 
     def _compare_versions(self, local: str, remote: str) -> int:
         def _parse(value: str) -> tuple[int, ...]:
@@ -217,6 +208,17 @@ class ToolboxApp(App):
         project = data.get("project") if isinstance(data, dict) else None
         version = project.get("version") if isinstance(project, dict) else None
         return str(version) if version else None
+
+    def _read_update_branch(self, repo_root: Path) -> str:
+        config_path = repo_root / ".toolbox_config.json"
+        if not config_path.exists():
+            return "main"
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            return "main"
+        branch = data.get("update_branch")
+        return branch if branch in {"main", "dev"} else "main"
 
     def _populate_categories(self) -> None:
         categories = sorted({tool.category for tool in self._tool_registry.tools})

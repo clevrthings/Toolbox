@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import re
-import tomllib
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -15,7 +15,6 @@ from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Label, RichLog, Select, Static
-
 
 
 class SettingsScreen(Screen):
@@ -62,9 +61,7 @@ class SettingsScreen(Screen):
             self.log_view.clear()
             return
         if event.button.id == "settings-copy":
-            text = "\n".join(
-                self._line_to_text(line) for line in self.log_view.lines
-            )
+            text = "\n".join(self._line_to_text(line) for line in self.log_view.lines)
             if not text.strip():
                 self._log("Log is empty.")
                 return
@@ -93,8 +90,7 @@ class SettingsScreen(Screen):
             if not pyproject.exists():
                 return "dev"
             text = pyproject.read_text(encoding="utf-8")
-            match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
-            return match.group(1) if match else "dev"
+            return self._parse_version_toml(text, str(pyproject)) or "dev"
 
     def _check_updates_worker(self) -> None:
         branch = self.branch_select.value or "main"
@@ -177,7 +173,7 @@ class SettingsScreen(Screen):
             return False
 
     def _replace_tree(self, source: Path, dest: Path) -> None:
-        keep = {".git", ".venv"}
+        keep = {".git", ".venv", ".toolbox_config.json", "run.sh", "push.sh"}
         for item in dest.iterdir():
             if item.name in keep:
                 continue
@@ -266,4 +262,3 @@ class SettingsScreen(Screen):
             self._config_path.write_text(json.dumps(data), encoding="utf-8")
         except Exception:
             self._log("Failed to save update channel.")
-
