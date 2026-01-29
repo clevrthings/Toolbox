@@ -29,7 +29,11 @@ if [ -d "${INSTALL_DIR}" ]; then
     echo "TOOLBOX_OVERWRITE=1 set, overwriting."
   else
     printf "Overwrite it? (y/N): "
-    read -r OVERWRITE || true
+    if [ -t 0 ]; then
+      read -r OVERWRITE || true
+    else
+      read -r OVERWRITE < /dev/tty || true
+    fi
   fi
   if [ "${OVERWRITE}" != "y" ] && [ "${OVERWRITE}" != "Y" ]; then
     echo "Remove it or choose a different location."
