@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -41,6 +43,7 @@ class SettingsScreen(Screen):
             with Horizontal(id="settings-actions"):
                 yield Button("Check for updates", id="settings-check")
                 yield Button("Update", id="settings-update", variant="success")
+                yield Button("Copy Log", id="settings-copy")
                 yield Button("Clear Log", id="settings-clear")
             self.log_view = RichLog(id="settings-log", highlight=True)
             yield self.log_view
@@ -58,6 +61,16 @@ class SettingsScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "settings-clear":
             self.log_view.clear()
+            return
+        if event.button.id == "settings-copy":
+            text = "\n".join(
+                self._line_to_text(line) for line in self.log_view.lines
+            )
+            if not text.strip():
+                self._log("Log is empty.")
+                return
+            self.app.copy_to_clipboard(text)
+            self._log("Log copied to clipboard.")
             return
         if event.button.id == "settings-check":
             self.run_worker(self._check_updates_worker, thread=True)
@@ -89,7 +102,7 @@ class SettingsScreen(Screen):
         local_version = self._read_version()
         remote_version = self._fetch_remote_version(branch)
         if remote_version is None:
-            self._log("Failed to fetch remote version.")
+            self._log(f"Failed to fetch remote version for branch '{branch}'.")
             return
         if self._compare_versions(local_version, remote_version) >= 0:
             self._log(f"Up to date. ({local_version})")
@@ -126,13 +139,21 @@ class SettingsScreen(Screen):
 
     def _fetch_remote_version(self, branch: str) -> str | None:
         url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Toolbox-Updater"},
+        )
         try:
-            with urllib.request.urlopen(url, timeout=10) as response:
+            with urllib.request.urlopen(request, timeout=10) as response:
                 text = response.read().decode("utf-8")
-        except Exception:
+                status = getattr(response, "status", 200)
+        except Exception as exc:
+            self._log(f"Fetch failed: {exc}")
             return None
-        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
-        return match.group(1) if match else None
+        if status != 200:
+            self._log(f"Fetch failed: HTTP {status}")
+            return None
+        return self._parse_version_toml(text, url)
 
     def _download_and_replace(self, branch: str) -> bool:
         url = f"https://github.com/clevrthings/Toolbox/archive/refs/heads/{branch}.zip"
@@ -181,7 +202,10 @@ class SettingsScreen(Screen):
         )
 
     def _log(self, message: str) -> None:
-        self.app.call_from_thread(self.log_view.write, message)
+        try:
+            self.log_view.write(message)
+        except Exception:
+            self.app.call_from_thread(self.log_view.write, message)
 
     def _compare_versions(self, local: str, remote: str) -> int:
         def _parse(value: str) -> tuple[int, ...]:
@@ -201,6 +225,29 @@ class SettingsScreen(Screen):
         if local_tuple > remote_tuple:
             return 1
         return -1
+
+    def _parse_version_toml(self, text: str, url: str) -> str | None:
+        try:
+            data = tomllib.loads(text)
+        except Exception as exc:
+            self._log(f"Failed to parse pyproject.toml: {exc}")
+            return None
+        project = data.get("project") if isinstance(data, dict) else None
+        version = project.get("version") if isinstance(project, dict) else None
+        if not version:
+            self._log(f"Version not found in remote pyproject.toml ({url}).")
+            return None
+        return str(version)
+
+    def _line_to_text(self, line) -> str:
+        if hasattr(line, "segments"):
+            return "".join(getattr(segment, "text", "") for segment in line.segments)
+        if hasattr(line, "plain"):
+            return line.plain
+        if hasattr(line, "text"):
+            text = line.text
+            return getattr(text, "plain", str(text))
+        return str(line)
 
     def _load_branch_setting(self) -> None:
         if not self._config_path.exists():

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import re
+import tomllib
 import urllib.request
 
 from textual.app import App
@@ -153,12 +154,18 @@ class ToolboxApp(App):
     def _fetch_remote_version(self, branch: str) -> str | None:
         url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
         try:
-            with urllib.request.urlopen(url, timeout=6) as response:
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Toolbox-Updater"},
+            )
+            with urllib.request.urlopen(request, timeout=6) as response:
                 text = response.read().decode("utf-8")
+                status = getattr(response, "status", 200)
         except Exception:
             return None
-        match = re.search(r'^version\\s*=\\s*"(.*?)"\\s*$', text, re.MULTILINE)
-        return match.group(1) if match else None
+        if status != 200:
+            return None
+        return self._parse_version_toml(text)
 
     def _read_update_branch(self, repo_root: Path) -> str:
         config_path = repo_root / ".toolbox_config.json"
@@ -189,6 +196,15 @@ class ToolboxApp(App):
         if local_tuple > remote_tuple:
             return 1
         return -1
+
+    def _parse_version_toml(self, text: str) -> str | None:
+        try:
+            data = tomllib.loads(text)
+        except Exception:
+            return None
+        project = data.get("project") if isinstance(data, dict) else None
+        version = project.get("version") if isinstance(project, dict) else None
+        return str(version) if version else None
 
     def _populate_categories(self) -> None:
         categories = sorted({tool.category for tool in self._tool_registry.tools})
