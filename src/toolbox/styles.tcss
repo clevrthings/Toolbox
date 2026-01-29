@@ -367,6 +367,8 @@ ListView > ListItem:hover {
 #settings-branch {
   width: 1fr;
   margin-bottom: 1;
+  height: 3;
+  max-height: 3;
 }
 
 #settings-log {
