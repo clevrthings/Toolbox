@@ -60,8 +60,11 @@ exec "${VENV_DIR}/bin/toolbox"
 EOS
 chmod +x "${RUN_SCRIPT}"
 
-read -r -p "Create global 'toolbox' command in /usr/local/bin? (y/N): " CREATE_GLOBAL
-if [[ "${CREATE_GLOBAL}" == "y" || "${CREATE_GLOBAL}" == "Y" ]]; then
+CREATE_GLOBAL="${TOOLBOX_GLOBAL:-}"
+if [[ -z "${CREATE_GLOBAL}" ]]; then
+  read -r -p "Create global 'toolbox' command in /usr/local/bin? (y/N): " CREATE_GLOBAL
+fi
+if [[ "${CREATE_GLOBAL}" == "y" || "${CREATE_GLOBAL}" == "Y" || "${CREATE_GLOBAL}" == "1" ]]; then
   sudo tee /usr/local/bin/toolbox >/dev/null <<EOS
 #!/usr/bin/env bash
 set -euo pipefail

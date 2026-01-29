@@ -48,4 +48,15 @@ mv "${EXTRACTED_DIR}" "${INSTALL_DIR}"
 echo "Running installer..."
 cd "${INSTALL_DIR}"
 chmod +x install.sh
-./install.sh
+CREATE_GLOBAL="n"
+if [ -t 0 ]; then
+  printf "Create global 'toolbox' command? (y/N): "
+  read -r CREATE_GLOBAL || true
+else
+  read -r CREATE_GLOBAL < /dev/tty || true
+fi
+if [ "${CREATE_GLOBAL}" = "y" ] || [ "${CREATE_GLOBAL}" = "Y" ]; then
+  TOOLBOX_GLOBAL=1 ./install.sh
+else
+  ./install.sh
+fi
