@@ -27,7 +27,11 @@ RUN_SCRIPT="${ROOT_DIR}/run.sh"
 cat > "${RUN_SCRIPT}" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "${SOURCE}" ]; do
+  SOURCE="$(readlink "${SOURCE}")"
+done
+ROOT_DIR="$(cd "$(dirname "${SOURCE}")" && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
   echo "Virtual environment not found. Run ./install.sh first."
@@ -39,7 +43,12 @@ chmod +x "${RUN_SCRIPT}"
 
 read -r -p "Create global 'toolbox' command in /usr/local/bin? (y/N): " CREATE_GLOBAL
 if [[ "${CREATE_GLOBAL}" == "y" || "${CREATE_GLOBAL}" == "Y" ]]; then
-  sudo ln -sf "${RUN_SCRIPT}" /usr/local/bin/toolbox
+  sudo tee /usr/local/bin/toolbox >/dev/null <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${ROOT_DIR}/.venv/bin/toolbox"
+EOF
+  sudo chmod +x /usr/local/bin/toolbox
   echo "Global command installed: toolbox"
 fi
 

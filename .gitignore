@@ -10,3 +10,4 @@ venv/
 dist/
 build/
 push.sh
+run.sh

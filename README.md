@@ -36,6 +36,7 @@ git pull --ff-only
 - Stereo Merger
 - OSC Sender/Receiver
 - TCP Sender/Receiver
+- Network Info
 - YouTube Downloader
 - Settings
 
