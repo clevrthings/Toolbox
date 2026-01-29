@@ -19,8 +19,13 @@ fi
 
 if [ -d "${INSTALL_DIR}" ]; then
   echo "Install directory already exists: ${INSTALL_DIR}"
-  echo "Remove it or choose a different location."
-  exit 1
+  printf "Overwrite it? (y/N): "
+  read -r OVERWRITE || true
+  if [ "${OVERWRITE}" != "y" ] && [ "${OVERWRITE}" != "Y" ]; then
+    echo "Remove it or choose a different location."
+    exit 1
+  fi
+  rm -rf "${INSTALL_DIR}"
 fi
 
 TMP_DIR="$(mktemp -d)"
