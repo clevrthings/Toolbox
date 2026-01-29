@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
-import subprocess
+import json
+import re
+import tomllib
+import urllib.request
 
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Input, ListItem, ListView, Static
+from textual.widgets import Button, Footer, Header, Input, ListItem, ListView, Static
 
 from toolbox.registry import ToolRegistry
+from toolbox.tools.settings import SettingsScreen
 
 
 class ToolScreen(Screen):
@@ -23,7 +26,10 @@ class ToolScreen(Screen):
 
     def compose(self):
         yield Header()
-        yield Static(f"[b]{self._tool_name}[/b]\n\n{self._tool_description}\n\n(placeholder view)", id="tool-view")
+        yield Static(
+            f"[b]{self._tool_name}[/b]\n\n{self._tool_description}\n\n(placeholder view)",
+            id="tool-view",
+        )
         yield Footer()
 
 
@@ -31,7 +37,10 @@ class ToolboxApp(App):
     TITLE = "Toolbox"
     SUB_TITLE = "Tools hub"
     CSS_PATH = "styles.tcss"
-    BINDINGS = [("q", "quit", "Quit")]
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("s", "open_settings", "Settings"),
+    ]
 
     def __init__(self, registry: ToolRegistry | None = None) -> None:
         super().__init__()
@@ -47,6 +56,7 @@ class ToolboxApp(App):
                 yield Static("Tools", id="sidebar-title")
                 self.search_input = Input(placeholder="Search tools...", id="tool-search")
                 yield self.search_input
+                yield Button("Settings", id="open-settings")
                 yield Static("Categories", id="category-title")
                 self.category_list = ListView(id="category-list")
                 yield self.category_list
@@ -110,6 +120,13 @@ class ToolboxApp(App):
             event.stop()
             self.pop_screen()
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "open-settings":
+            self.push_screen(SettingsScreen())
+
+    def action_open_settings(self) -> None:
+        self.push_screen(SettingsScreen())
+
     def _refresh_tool_list(self, query: str) -> None:
         needle = query.strip().lower()
         category = self._selected_category
@@ -129,52 +146,79 @@ class ToolboxApp(App):
             self.tool_details.update("No tools match your search.")
 
     def _startup_update_check(self) -> None:
-        if shutil.which("git") is None:
-            return
         repo_root = Path(__file__).resolve().parents[2]
-        check = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if check.returncode != 0 or "true" not in check.stdout:
+        local_version = self._read_local_version(repo_root)
+        branch = self._read_update_branch(repo_root)
+        remote_version = self._fetch_remote_version(branch)
+        if local_version is None or remote_version is None:
             return
-        upstream = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if upstream.returncode != 0:
-            return
-        subprocess.run(
-            ["git", "fetch", "--prune"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        counts = subprocess.run(
-            ["git", "rev-list", "--left-right", "--count", f"HEAD...{upstream.stdout.strip()}"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
-        if counts.returncode != 0:
-            return
-        try:
-            _ahead, behind = counts.stdout.strip().split()
-        except ValueError:
-            return
-        try:
-            behind_count = int(behind)
-        except ValueError:
-            return
-        if behind_count > 0:
+        if self._compare_versions(local_version, remote_version) < 0:
             self.call_from_thread(
                 self.update_status.update,
-                f"[yellow]Update available: {behind_count} commit(s) behind.[/yellow]",
+                f"[yellow]Update available: {local_version} → {remote_version}.[/yellow]",
             )
+
+    def _read_local_version(self, repo_root: Path) -> str | None:
+        pyproject = repo_root / "pyproject.toml"
+        if not pyproject.exists():
+            return None
+        text = pyproject.read_text(encoding="utf-8")
+        return self._parse_version_toml(text)
+
+    def _fetch_remote_version(self, branch: str) -> str | None:
+        url = f"https://raw.githubusercontent.com/clevrthings/Toolbox/{branch}/pyproject.toml"
+        try:
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Toolbox-Updater"},
+            )
+            with urllib.request.urlopen(request, timeout=6) as response:
+                text = response.read().decode("utf-8")
+                status = getattr(response, "status", 200)
+        except Exception:
+            return None
+        if status != 200:
+            return None
+        return self._parse_version_toml(text)
+
+    def _compare_versions(self, local: str, remote: str) -> int:
+        def _parse(value: str) -> tuple[int, ...]:
+            parts = re.split(r"[.+-]", value)
+            nums: list[int] = []
+            for part in parts:
+                if part.isdigit():
+                    nums.append(int(part))
+                else:
+                    break
+            return tuple(nums)
+
+        local_tuple = _parse(local)
+        remote_tuple = _parse(remote)
+        if local_tuple == remote_tuple:
+            return 0
+        if local_tuple > remote_tuple:
+            return 1
+        return -1
+
+    def _parse_version_toml(self, text: str) -> str | None:
+        try:
+            data = tomllib.loads(text)
+        except Exception:
+            return None
+        project = data.get("project") if isinstance(data, dict) else None
+        version = project.get("version") if isinstance(project, dict) else None
+        return str(version) if version else None
+
+    def _read_update_branch(self, repo_root: Path) -> str:
+        config_path = repo_root / ".toolbox_config.json"
+        if not config_path.exists():
+            return "main"
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            return "main"
+        branch = data.get("update_branch")
+        return branch if branch in {"main", "dev"} else "main"
 
     def _populate_categories(self) -> None:
         categories = sorted({tool.category for tool in self._tool_registry.tools})

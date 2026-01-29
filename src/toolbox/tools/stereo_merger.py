@@ -187,11 +187,28 @@ class StereoMergerScreen(Screen):
             if ext not in self._EXTENSIONS:
                 continue
             name = path.name
-            if name.endswith(f".L{ext}"):
-                key = name.replace(f".L{ext}", "")
+            name_lower = name.lower()
+            if name_lower.endswith(f".l{ext}") or name_lower.endswith(f"%l{ext}") or name_lower.endswith(f"_l{ext}"):
+                key = (
+                    name[: -len(ext)]
+                    .replace(".L", "")
+                    .replace(".l", "")
+                    .replace("%L", "")
+                    .replace("%l", "")
+                    .replace("_L", "")
+                    .replace("_l", "")
+                )
                 grouped.setdefault((key, ext), {})["L"] = path
-            elif name.endswith(f".R{ext}"):
-                key = name.replace(f".R{ext}", "")
+            elif name_lower.endswith(f".r{ext}") or name_lower.endswith(f"%r{ext}") or name_lower.endswith(f"_r{ext}"):
+                key = (
+                    name[: -len(ext)]
+                    .replace(".R", "")
+                    .replace(".r", "")
+                    .replace("%R", "")
+                    .replace("%r", "")
+                    .replace("_R", "")
+                    .replace("_r", "")
+                )
                 grouped.setdefault((key, ext), {})["R"] = path
 
         pairs = []
