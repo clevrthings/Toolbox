@@ -33,6 +33,11 @@ Horizontal {
   border: round $primary;
 }
 
+#open-settings {
+  margin-bottom: 1;
+  width: 1fr;
+}
+
 #category-title {
   margin-bottom: 1;
 }

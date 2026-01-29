@@ -10,9 +10,10 @@ from textual.app import App
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Input, ListItem, ListView, Static
+from textual.widgets import Button, Footer, Header, Input, ListItem, ListView, Static
 
 from toolbox.registry import ToolRegistry
+from toolbox.tools.settings import SettingsScreen
 
 
 class ToolScreen(Screen):
@@ -33,7 +34,10 @@ class ToolboxApp(App):
     TITLE = "Toolbox"
     SUB_TITLE = "Tools hub"
     CSS_PATH = "styles.tcss"
-    BINDINGS = [("q", "quit", "Quit")]
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("s", "open_settings", "Settings"),
+    ]
 
     def __init__(self, registry: ToolRegistry | None = None) -> None:
         super().__init__()
@@ -49,6 +53,7 @@ class ToolboxApp(App):
                 yield Static("Tools", id="sidebar-title")
                 self.search_input = Input(placeholder="Search tools...", id="tool-search")
                 yield self.search_input
+                yield Button("Settings", id="open-settings")
                 yield Static("Categories", id="category-title")
                 self.category_list = ListView(id="category-list")
                 yield self.category_list
@@ -111,6 +116,13 @@ class ToolboxApp(App):
         if event.key == "escape" and len(self.screen_stack) > 1:
             event.stop()
             self.pop_screen()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "open-settings":
+            self.push_screen(SettingsScreen())
+
+    def action_open_settings(self) -> None:
+        self.push_screen(SettingsScreen())
 
     def _refresh_tool_list(self, query: str) -> None:
         needle = query.strip().lower()

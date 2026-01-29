@@ -38,7 +38,6 @@ git pull --ff-only
 - TCP Sender/Receiver
 - Network Info
 - YouTube Downloader
-- Settings
 
 ## Add a tool
 

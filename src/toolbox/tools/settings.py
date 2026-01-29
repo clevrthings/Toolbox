@@ -16,7 +16,6 @@ from textual.containers import Horizontal, ScrollableContainer
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Label, RichLog, Select, Static
 
-from toolbox.tools.base import Tool
 
 
 class SettingsScreen(Screen):
@@ -268,10 +267,3 @@ class SettingsScreen(Screen):
         except Exception:
             self._log("Failed to save update channel.")
 
-
-TOOL = Tool(
-    name="Settings",
-    description="Manage updates and view version information.",
-    category="System",
-    screen_factory=SettingsScreen,
-)
