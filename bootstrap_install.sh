@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
 REPO_OWNER="clevrthings"
 REPO_NAME="Toolbox"
@@ -7,12 +7,13 @@ BRANCH="main"
 DEFAULT_INSTALL_DIR="${HOME}/Toolbox"
 
 echo "Default install path: ${DEFAULT_INSTALL_DIR}"
-read -r -p "Install path (press Enter to accept default): " INSTALL_DIR
-if [[ -z "${INSTALL_DIR}" ]]; then
+printf "Install path (press Enter to accept default): "
+read -r INSTALL_DIR || true
+if [ -z "${INSTALL_DIR}" ]; then
   INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
 fi
 
-if [[ -d "${INSTALL_DIR}" ]]; then
+if [ -d "${INSTALL_DIR}" ]; then
   echo "Install directory already exists: ${INSTALL_DIR}"
   echo "Remove it or choose a different location."
   exit 1
@@ -28,7 +29,7 @@ echo "Extracting..."
 unzip -q "${ZIP_PATH}" -d "${TMP_DIR}"
 
 EXTRACTED_DIR="${TMP_DIR}/${REPO_NAME}-${BRANCH}"
-if [[ ! -d "${EXTRACTED_DIR}" ]]; then
+if [ ! -d "${EXTRACTED_DIR}" ]; then
   echo "Extraction failed."
   exit 1
 fi
