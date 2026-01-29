@@ -8,7 +8,11 @@ DEFAULT_INSTALL_DIR="${HOME}/Toolbox"
 
 echo "Default install path: ${DEFAULT_INSTALL_DIR}"
 printf "Install path (press Enter to accept default): "
-read -r INSTALL_DIR || true
+if [ -t 0 ]; then
+  read -r INSTALL_DIR || true
+else
+  read -r INSTALL_DIR < /dev/tty || true
+fi
 if [ -z "${INSTALL_DIR}" ]; then
   INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
 fi
